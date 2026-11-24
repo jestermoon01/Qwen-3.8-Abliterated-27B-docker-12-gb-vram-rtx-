@@ -1,195 +1,126 @@
-# Local Huihui Qwen3.8 27B on Docker
+# Qwen 27B: local inference and chat UI
 
-Run a quantized 27B model locally with a browser chat UI, an OpenAI-compatible
-API, automatic context compression, and persistent Mem0/Qdrant memory.
-The default is tuned for an NVIDIA RTX 5070 with 12 GB VRAM. It uses llama.cpp
-CUDA with IQ3 weights, full GPU offload, and native MTP speculative decoding.
+Deploy Huihui Qwen3.8 27B IQ3 with llama.cpp CUDA, a browser chat UI, and an
+OpenAI-compatible API for agent clients. Only model deployment is included.
 
-Compose downloads the pinned model and verifies its SHA256 automatically.
-No personal files, machine-specific absolute paths, model weights, or credentials
-are required from the original computer.
+## Requirements
 
-## Supported machines
+- Windows x86-64 with Docker Desktop/WSL2 and NVIDIA GPU access, or Linux
+  x86-64 with Docker Engine and NVIDIA Container Toolkit.
+- Docker Compose 2.30 or newer and a compatible NVIDIA driver/GPU.
+- Defaults are tuned for an RTX 5070 with **12 GB VRAM**. Plan for at least
+  **32 GB host RAM** and **30 GB free disk**. Other GPUs have not been validated.
+  macOS, AMD-only, and CPU-only devices need a different inference backend.
+- Internet for initial images and the **11.02 GB** model download.
 
-- Windows x86-64 with Docker Desktop using WSL2 and NVIDIA GPU support, or
-  Linux x86-64 with Docker Engine and NVIDIA Container Toolkit configured.
-- A compatible NVIDIA GPU and current driver. The tested default needs about
-  12 GB VRAM and leaves little headroom; GPU architecture, display usage, context,
-  and backend compatibility affect whether it fits. Only the RTX 5070 machine
-  has been tested with real inference.
-- Docker Compose **2.30 or newer** (GPU support and Compose override tags).
-- Plan for at least 32 GB host RAM and 30 GB free disk for weights, images,
-  and caches. The original machine has 64 GB RAM. Allow Docker/WSL adequate memory.
-- Internet for initial Docker images, the **11.02 GB** GGUF download, and the
-  small embedding model. Later inference and memory run locally using cached files.
-
-This CUDA deployment does **not** run unchanged on macOS/Apple Silicon, AMD-only,
-or CPU-only devices. Docker does not make GPU requirements universal.
-
-## Start
+## Clone and start
 
 ```sh
 git clone https://github.com/jestermoon01/Qwen-3.8-Abliterated-27B-docker-12-gb-vram-rtx-.git
 cd Qwen-3.8-Abliterated-27B-docker-12-gb-vram-rtx-
+```
+
+Windows PowerShell:
+
+```powershell
+.\scripts\setup.ps1
+```
+
+Linux:
+
+```sh
+sh scripts/setup.sh
+```
+
+Setup downloads and verifies the pinned model, then builds and starts inference
+and the UI. **This public model currently needs no Hugging Face token**, verified
+with an unauthenticated request. If Hugging Face returns 401/403, setup pauses
+for a **hidden read token** and then retries. Obtain a token from
+https://huggingface.co/settings/tokens and approve any model access terms first.
+A token cannot bypass access approval. Blank input cancels.
+
+The token stays in the downloader process only. It is never saved, committed,
+passed as a build argument, or placed in an image. **No HF token is needed during
+Docker build**: model downloading happens at setup/runtime in a persistent volume.
+
+For deployment without interactive prompts:
+
+```sh
 docker compose up -d --build
 ```
 
-No `.env` file is needed for the defaults. To customize, copy `.env.example` to
-`.env` before starting. Convenience scripts are `scripts/setup.ps1` for
-PowerShell and `sh scripts/setup.sh` for Linux.
+This works for the current public model. If access is restricted, it fails with
+instructions to run setup. Detached Compose cannot accept a token prompt; use
+the setup script when interactive authentication is needed.
 
-First startup may take a long time. Compose runs the model downloader to
-completion before starting inference, and waits for inference readiness before
-starting the gateway. Download progress appears in the logs:
+Follow startup until inference and gateway are healthy:
 
 ```sh
 docker compose logs -f model-download inference gateway
 docker compose ps -a
 ```
 
-The downloader should exit with code 0; inference and gateway should be healthy.
-Then open **http://localhost:8001/**. The API base URL is
-**http://localhost:8001/v1**, model **huihui-qwen3.8-27b**.
-There is no API key. If `API_PORT` is changed, use that port instead.
+Open **http://localhost:8001/**. Chat history stays in browser memory until refresh.
+Start a new chat when you reach the context limit. There are no benchmarks,
+agent frameworks, memory services, databases, or automatic compression.
 
-Verify readiness and send a request (use `curl.exe` in Windows PowerShell):
+## Attach an agent
 
-```sh
-curl http://localhost:8001/health
-curl http://localhost:8001/v1/models
-```
+Configure the agent's OpenAI-compatible provider:
 
-```python
-import json
-from urllib.request import Request, urlopen
+| Setting | Value |
+|---|---|
+| Base URL on the same host | `http://localhost:8001/v1` |
+| Model | `huihui-qwen3.8-27b` |
+| API key | None; use `local-not-required` if the client requires a value |
 
-payload = {
-    "model": "huihui-qwen3.8-27b",
-    "messages": [{"role": "user", "content": "Explain Docker volumes briefly."}],
-    "max_tokens": 128,
-}
-request = Request("http://localhost:8001/v1/chat/completions",
-                  data=json.dumps(payload).encode(),
-                  headers={"Content-Type": "application/json"})
-with urlopen(request, timeout=300) as response:
-    print(json.load(response)["choices"][0]["message"]["content"])
-```
+For an agent in Docker, attach its container to `qwen-local_default` and use
+`http://gateway:8000/v1`. Inside a container, `localhost` refers to that container.
+The API proxies llama.cpp's `/v1/*` endpoints, including chat completions and
+streaming. Tool calls are returned to the agent, which executes its own tools.
+Clients requiring another protocol or unsupported multimodal features need an adapter.
 
-The API binds to `127.0.0.1`; inference and Qdrant have no host ports.
-Each device runs its own copy. This does not expose the API to other computers.
-See [agent integration](integrations/README.md) to connect Hermes, ARTEX, or PentAGI.
+The API binds to loopback and has no authentication. It is intended for trusted
+local use. Each laptop runs its own deployment; other computers cannot connect
+by default.
 
-## Model and persistence
+## Configuration and model storage
+
+Copy `.env.example` to `.env` to change the port, CPU threads, GPU layers, or
+context. Defaults: full GPU offload, eight CPU threads, one active slot, **8192
+tokens including output**, Q4 KV cache, and MTP acceleration. Keep
+`CONTEXT_PER_SLOT = TOTAL_CONTEXT / PARALLEL_SLOTS`. Extra agents share the model.
+
+If VRAM is insufficient, stop other GPU workloads or lower `GPU_LAYERS` for
+slower CPU offload. Resource requirements vary with settings.
 
 `model-manifest.json` pins the upstream repository, revision, filename, size,
-and SHA256. The downloader uses only Python's standard library, retries failed
-downloads, checks the completed file, and atomically publishes it. Interrupted
-downloads restart from the beginning on retry. Incomplete files are never loaded
-by inference. Cached files are verified again on subsequent downloader runs.
+and SHA256. Weights are verified before inference starts. Failed downloads
+retry from the beginning; cached weights are verified and reused. The named
+`models` volume survives restart and `docker compose down`.
+**`docker compose down -v` deletes the downloaded model.**
 
-Named volumes hold model weights (`models`), embeddings and memory history
-(`memory`), and vectors (`qdrant`). Ordinary restarts and `docker compose down`
-retain them. **`docker compose down -v` deletes all these volumes**, including
-the downloaded weights and memories.
-
-To reuse a complete GGUF already on disk, set `MODEL_PATH` to its absolute path
-in `.env`, then use the local-file override on every Compose command:
+To reuse a compatible GGUF already on disk, set `MODEL_PATH` to its absolute
+path in `.env` and use this command instead of setup:
 
 ```sh
 docker compose -f compose.yaml -f compose.local-model.yaml up -d --build
 ```
 
-This skips downloading and mounts the file read-only. Use the pinned IQ3 model
-for the tested settings; a different model can require different context, cache,
-GPU, and speculative-decoding settings. Renaming `MODEL_ALIAS` only changes the
-API name, not the weights. For a different automatically downloaded checkpoint,
-update all model-manifest identity and checksum fields together.
+Use both files on subsequent Compose commands. This skips downloading and
+mounts the file read-only. Other checkpoints may need different inference settings.
 
-## Presets and resources
-
-Defaults: one active inference slot, 8,192 tokens including output, eight CPU
-threads, Q4 KV cache, all decoder layers on GPU, and MTP enabled. Additional
-requests queue; the gateway admits up to eight in-flight requests, then returns
-429. The model is shared by all agents.
-
-To use two slots with 16,384 tokens each, copy `profiles/balanced-iq3.env` to
-`.env`, then recreate services. This disables MTP to leave room for context.
-Use `profiles/fast-iq3-mtp.env` to restore the default preset.
-
-PowerShell:
-
-```powershell
-Copy-Item profiles/balanced-iq3.env .env -Force
-docker compose up -d --build
-```
-
-Linux:
+## Operations
 
 ```sh
-cp profiles/balanced-iq3.env .env
-docker compose up -d --build
-```
-
-Keep `CONTEXT_PER_SLOT = TOTAL_CONTEXT / PARALLEL_SLOTS`. Startup rejects a
-gateway/backend context mismatch. Lower `GPU_LAYERS` if the model runs out of
-VRAM; CPU offload needs more RAM and reduces speed. Stop other GPU-heavy work.
-Keep the measured defaults unless you plan to benchmark changes.
-
-`compose.long.yaml` is an experimental 65,536-token-per-slot, two-slot override
-using CPU KV cache and partial GPU offload. It needs substantially more RAM and
-is not validated on every machine. Use both files consistently:
-
-```sh
-docker compose -f compose.yaml -f compose.long.yaml up -d --build
-```
-
-Original-machine short warm-generation measurements were about 65 tokens/s for
-the fast preset and 43 tokens/s for one request on the balanced preset. These
-are hardware-specific observations, not performance guarantees. Reasoning and
-tool-use errors remain; quantization and longer context can affect quality.
-
-## Context and memory
-
-The gateway counts tokens using the backend's real chat template, reserves
-output space, and summarizes older turns when needed. Compression is lossy;
-recent tool-call IDs, ordering, arguments, and system/developer instructions are
-preserved. Large tool results can be summarized with a lossy-summary marker;
-oversized instructions, user requests, or call arguments can still return 413. Text, streaming,
-and OpenAI-style function tools are supported; clients execute the actual tools.
-Images and audio are not supported. This is a model backend, not an agent runner.
-
-Send `X-User-ID` to enable semantic memory and `X-Agent-ID` to select an agent
-namespace. Omitting the user header disables automatic memory for that request.
-Successful user turns are saved verbatim through a durable outbox. Mem0 uses
-local FastEmbed `BAAI/bge-small-en-v1.5` embeddings and Qdrant. Recall is
-eventually consistent and the embedding model is English-oriented.
-
-Memory routes: `POST /memory` with `{"text":"..."}`, `GET /memory/search?q=...`,
-and `DELETE /memory`, with the same namespace headers. Headers organize memory;
-they are not tenant authentication. Use this unauthenticated service only in
-your trusted local environment.
-
-## Operations and troubleshooting
-
-```sh
-docker compose logs --tail 100 gateway inference model-download
-docker compose exec gateway python -m unittest discover -s tests -p 'test_*.py' -v
-docker compose exec gateway python tests/live.py
+docker compose logs --tail 100 model-download inference gateway
 docker compose stop
 docker compose start
+docker compose down
 ```
 
-If Compose cannot select a GPU driver, check `nvidia-smi`, Docker GPU access,
-and the NVIDIA Container Toolkit/WSL2 setup. If the downloader fails, inspect
-its logs and disk space, then rerun `docker compose up -d --build`. If inference
-is healthy but gateway startup fails, inspect embedding downloads, Qdrant,
-network access, and available RAM. Do not increase context without checking VRAM.
-
-`python benchmarks/run_hard.py` records a custom reasoning/tool/memory benchmark
-against the running API. It is not a standard model quality score. More extensive
-live checks send real inference requests and can take several minutes.
-
-The CUDA backend, Qdrant, base Python image, model revision, and Python dependency
-versions are pinned. Fresh machines still need compatible drivers and download
-access. Upstream model and dependency licenses apply; this repository does not
-redistribute weights or claim ownership of them.
+Readiness: `http://localhost:8001/health`. Models: `http://localhost:8001/v1/models`.
+If GPU startup fails, check `nvidia-smi`, Docker GPU access, and free VRAM. For
+model download failures, check network access, disk space, and Hugging Face
+permissions, then rerun setup. GPU compatibility and performance on other laptops
+are not guaranteed. Upstream model and dependency licenses apply.

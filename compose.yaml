@@ -63,34 +63,18 @@ services:
       timeout: 5s
       retries: 30
       start_period: 120s
-  qdrant:
-    image: qdrant/qdrant:v1.17.0@sha256:f1c7272cdac52b38c1a0e89313922d940ba50afd90d593a1605dbbc214e66ffb
-    restart: unless-stopped
-    volumes:
-      - qdrant:/qdrant/storage
   gateway:
     build: .
     restart: unless-stopped
     ports:
       - '127.0.0.1:${API_PORT:-8001}:8000'
     environment:
-      AUTH_ENABLED: 'false'
       MODEL_ALIAS: ${MODEL_ALIAS:-huihui-qwen3.8-27b}
-      WEIGHTS_FILE: ${MODEL_FILE:-huihui-27b-iq3_xxs.gguf}
       BACKEND: http://inference:8080
       CONTEXT_PER_SLOT: ${CONTEXT_PER_SLOT:-8192}
-      PARALLEL_SLOTS: ${PARALLEL_SLOTS:-1}
-      MAX_INFLIGHT: ${MAX_INFLIGHT:-8}
-      ENABLE_THINKING: ${ENABLE_THINKING:-false}
-      QDRANT_HOST: qdrant
-      MEM0_TELEMETRY: 'false'
-    volumes:
-      - memory:/data
     depends_on:
       inference:
         condition: service_healthy
-      qdrant:
-        condition: service_started
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 15s
@@ -99,5 +83,3 @@ services:
       start_period: 180s
 volumes:
   models:
-  qdrant:
-  memory:

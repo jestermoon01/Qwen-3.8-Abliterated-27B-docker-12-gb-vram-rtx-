@@ -1,9 +1,6 @@
 *
 !requirements.txt
-!requirements.lock.txt
 !gateway/
 !gateway/**
-!tests/
-!tests/**
-!scripts/
-!scripts/download_model.py
+**/__pycache__/
+**/*.pyc

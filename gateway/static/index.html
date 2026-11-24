@@ -19,12 +19,6 @@ aside{height:100dvh;overflow-y:auto}header{flex-wrap:wrap}header>div{min-width:0
       <p class="subtle" id="connection" role="status">Connecting to your local model…</p>
       <p class="subtle">Local access · no API key needed</p>
     </section>
-    <section class="section"><h2>Memory</h2>
-      <label class="check"><input id="memory" type="checkbox" checked>Use persistent memory</label>
-      <label for="user">User / project</label><input id="user" value="local-user" maxlength="120" spellcheck="false">
-      <label for="agent">Agent</label><input id="agent" value="chat" maxlength="120" spellcheck="false">
-      <p class="subtle">Memory is shared across chats with the same user and agent.</p>
-    </section>
     <section class="section"><h2>Generation</h2>
       <label for="tokens">Maximum reply tokens</label><select id="tokens"><option>256</option><option>512</option><option selected>1024</option><option>2048</option><option>4096</option><option>8192</option></select>
       <label for="system">System instruction <span class="subtle">(optional)</span></label><textarea id="system" rows="3" placeholder="You are a helpful assistant."></textarea>
@@ -35,8 +29,8 @@ aside{height:100dvh;overflow-y:auto}header{flex-wrap:wrap}header>div{min-width:0
 <main>
   <header><div><h1 id="model-name">Local model</h1><span class="subtle">Local chat playground</span></div><span id="health" class="badge">Checking server</span><button id="newchat">New chat</button></header>
   <section class="messages" id="messages" aria-label="Conversation" aria-live="polite" aria-relevant="additions">
-    <div class="welcome" id="welcome"><div class="eyebrow">Ready when you are</div><h2>A little space to think.</h2><p>Ask a question, try some code, or paste a document. Replies stream as the model writes. Long conversations are summarized automatically.</p>
-      <div class="suggestions"><button data-prompt="Explain how a multiagent system can share memory. Give me a small Python example.">Explore a multiagent idea</button><button data-prompt="Help me debug some code. Ask me for the code and the error first.">Work through a coding problem</button><button data-prompt="I will paste a long document next. Help me summarize its key decisions and action items.">Make sense of a long document</button></div>
+    <div class="welcome" id="welcome"><div class="eyebrow">Ready when you are</div><h2>A little space to think.</h2><p>Ask a question, try some code, or paste a document. Replies stream as the model writes. Start a new chat when the conversation reaches the context limit.</p>
+      <div class="suggestions"><button data-prompt="Explain how an agent uses an OpenAI-compatible API. Give me a small Python example.">Connect an agent</button><button data-prompt="Help me debug some code. Ask me for the code and the error first.">Work through a coding problem</button><button data-prompt="I will paste a long document next. Help me summarize its key decisions and action items.">Make sense of a long document</button></div>
     </div>
   </section>
   <div class="composer-wrap"><form id="form" class="composer"><label class="sr-only" for="prompt">Message</label><textarea id="prompt" placeholder="Message the model…" rows="2" required></textarea><div class="composer-bottom"><span>Enter to send · Shift + Enter for a new line</span><button type="button" id="stop" hidden>Stop</button><button type="submit" id="send" class="primary" disabled>Send message</button></div></form><div id="status" class="status" role="status">Connecting to the local model…</div></div>
@@ -50,27 +44,26 @@ let model = 'local-model';
 try { sessionStorage.removeItem('qwen-api-key'); } catch {}
 $('endpoint').textContent = location.origin + '/v1';
 function status(message, error=false) { $('status').textContent=message; $('status').classList.toggle('error',error); }
-function headers() { const h={'Content-Type':'application/json'}; if($('memory').checked) {h['X-User-ID']=$('user').value.trim();h['X-Agent-ID']=$('agent').value.trim()||'chat';}return h; }
-function lock(value) {busy=value;for(const id of ['memory','user','agent','tokens','system','newchat'])$(id).disabled=value;$('send').disabled=value||!connected;$('send').hidden=value;$('stop').hidden=!value;}
+function headers() { return {'Content-Type':'application/json'}; }
+function lock(value) {busy=value;for(const id of ['tokens','system','newchat'])$(id).disabled=value;$('send').disabled=value||!connected;$('send').hidden=value;$('stop').hidden=!value;}
 function scroll() { const el=$('messages');el.scrollTop=el.scrollHeight; }
 function message(role,text) { $('welcome').hidden=true;const el=document.createElement('article');el.className='message '+role;const top=document.createElement('div');top.className='who';const name=document.createElement('span');name.textContent=role==='user'?'YOU':'QWEN';const copy=document.createElement('button');copy.type='button';copy.className='copy';copy.textContent='Copy';const body=document.createElement('div');body.className='content';body.textContent=text;copy.onclick=async()=>{try{await navigator.clipboard.writeText(body.textContent);copy.textContent='Copied';setTimeout(()=>copy.textContent='Copy',1500);}catch{status('Clipboard unavailable. Select the text to copy.',true);}};top.append(name,copy);el.append(top,body);$('messages').append(el);scroll();return {el,body}; }
 async function errorText(response) {try{const data=await response.json();return typeof data.detail==='string'?data.detail:JSON.stringify(data.detail||data.error||data);}catch{return 'Request failed ('+response.status+').';}}
 async function connect() {if(busy)return;connected=false;$('send').disabled=true;$('connection').textContent='Connecting…';try{const configResponse=await fetch('/config');if(!configResponse.ok)throw Error('Could not load server settings');const config=await configResponse.json();model=config.model;$('model-name').textContent=model;$('system').value=config.default_system||'';const r=await fetch('/v1/models');if(!r.ok)throw Error(await errorText(r));await r.json();connected=true;$('connection').textContent='Connected to '+model;status('Ready. Type a message below.');$('prompt').focus();}catch(e){$('connection').textContent='Could not connect: '+e.message;status('The local model is unavailable. Refresh to reconnect.',true);}finally{$('send').disabled=!connected;}}
 async function health() {try{const r=await fetch('/health',{signal:AbortSignal.timeout(8000)});if(!r.ok)throw Error();const data=await r.json();$('health').textContent='Online · '+(data.context_per_request/1024)+'K context';for(const option of $('tokens').options)option.disabled=Number(option.value)>data.context_per_request/2;}catch{$('health').textContent='Server unavailable';}}
-$('newchat').onclick=()=>{history=[];for(const el of $('messages').querySelectorAll('.message'))el.remove();$('welcome').hidden=false;status('New chat. Persistent memory is kept.');$('prompt').focus();};
+$('newchat').onclick=()=>{history=[];for(const el of $('messages').querySelectorAll('.message'))el.remove();$('welcome').hidden=false;status('New chat started.');$('prompt').focus();};
 for(const button of document.querySelectorAll('[data-prompt]'))button.onclick=()=>{$('prompt').value=button.dataset.prompt;$('prompt').focus();};
 $('prompt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();if(!busy&&connected)$('form').requestSubmit();}});
 $('stop').onclick=()=>controller?.abort();
 $('form').addEventListener('submit',async event=>{
   event.preventDefault();const text=$('prompt').value.trim();if(!text||busy||!connected)return;
-  if($('memory').checked&&!$('user').value.trim()){status('Enter a user / project name for memory, or turn memory off.',true);$('user').focus();return;}
-  lock(true);$('prompt').value='';message('user',text);const reply=message('assistant','');reply.body.textContent='Thinking…';status('Preparing context and checking memory…');
+  lock(true);$('prompt').value='';message('user',text);const reply=message('assistant','');reply.body.textContent='Thinking…';status('Sending to the local model…');
   const context=[...history,{role:'user',content:text}];if($('system').value.trim())context.unshift({role:'system',content:$('system').value.trim()});
   controller=new AbortController();let content='',reasoning='',complete=false,info='',reasoningText=null;
   try{
     const response=await fetch('/v1/chat/completions',{method:'POST',headers:headers(),signal:controller.signal,body:JSON.stringify({model,messages:context,max_tokens:Number($('tokens').value),stream:true})});
     if(!response.ok)throw Error(await errorText(response));
-    info=response.headers.get('x-context-tokens-after')+' prompt tokens · Memory: '+response.headers.get('x-memory-status');if(response.headers.get('x-context-compressed')==='true')info+=' · Earlier context summarized';status(info+' · Generating…');
+    info='Local inference';status(info+' - Generating...');
     const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='';
     function line(value){if(!value.startsWith('data:'))return;const raw=value.slice(5).trim();if(raw==='[DONE]'){complete=true;return;}if(!raw)return;const data=JSON.parse(raw);if(data.error)throw Error(data.error.message||JSON.stringify(data.error));const delta=data.choices?.[0]?.delta||{};if(delta.content){content+=delta.content;reply.body.textContent=content;}if(delta.reasoning_content){reasoning+=delta.reasoning_content;if(!reasoningText){const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent='Reasoning';reasoningText=document.createElement('pre');details.append(summary,reasoningText);reply.el.insertBefore(details,reply.body);}reasoningText.textContent=reasoning;}scroll();}
     while(true){const {value,done}=await reader.read();if(done){buffer+=decoder.decode();break;}buffer+=decoder.decode(value,{stream:true});let index;while((index=buffer.indexOf('\n'))!==-1){line(buffer.slice(0,index).replace(/\r$/,''));buffer=buffer.slice(index+1);}}
