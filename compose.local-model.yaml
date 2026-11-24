@@ -1,0 +1,14 @@
+# Optional: reuse a host GGUF instead of downloading into the models volume.
+# MODEL_PATH must point to a compatible, complete GGUF file.
+services:
+  model-download:
+    profiles: [download]
+  inference:
+    depends_on: !reset {}
+    volumes: !override
+      - type: bind
+        source: ${MODEL_PATH:?Set MODEL_PATH to your GGUF file}
+        target: /models/model.gguf
+        read_only: true
+        bind:
+          create_host_path: false

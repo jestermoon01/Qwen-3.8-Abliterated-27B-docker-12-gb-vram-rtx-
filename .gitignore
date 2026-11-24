@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+*.gguf
+*.part
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+*.local.json
+*.log
+benchmarks/results/

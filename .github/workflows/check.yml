@@ -1,0 +1,21 @@
+name: Docker and configuration checks
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate default configuration
+        run: docker compose config --quiet
+      - name: Validate long-context configuration
+        run: docker compose -f compose.yaml -f compose.long.yaml config --quiet
+      - name: Validate local-model configuration
+        env:
+          MODEL_PATH: /tmp/model.gguf
+        run: docker compose -f compose.yaml -f compose.local-model.yaml config --quiet
+      - name: Build gateway
+        run: docker build -t qwen-check .
+      - name: Test compression and verified downloading without a GPU
+        run: docker run --rm qwen-check python -m unittest discover -s tests -p 'test_*.py' -v
