@@ -3,6 +3,11 @@
 Deploy Huihui Qwen3.8 27B IQ3 with llama.cpp CUDA, a browser chat UI, and an
 OpenAI-compatible API for agent clients. Only model deployment is included.
 
+The defaults match the inspected running Docker inference container: the same
+IQ3 GGUF, pinned llama.cpp CUDA image, 32K context, one slot, thinking enabled,
+and speculative decoding disabled. The downloaded file must match SHA256
+`e86259c841888b06fd84750963a0263947c9aae3c3029b52cbb3faa34a554827`.
+
 ## Requirements
 
 - Windows x86-64 with Docker Desktop/WSL2 and NVIDIA GPU access, or Linux
@@ -87,8 +92,9 @@ by default.
 ## Configuration and model storage
 
 Copy `.env.example` to `.env` to change the port, CPU threads, GPU layers, or
-context. Defaults: full GPU offload, eight CPU threads, one active slot, **8192
-tokens including output**, Q4 KV cache, and MTP acceleration. Keep
+context. Defaults: full GPU offload, eight CPU threads, one active slot, **32768
+tokens including output**, Q4 KV cache, thinking enabled, speculative decoding
+disabled, and microbatch size 128. Keep
 `CONTEXT_PER_SLOT = TOTAL_CONTEXT / PARALLEL_SLOTS`. Extra agents share the model.
 
 If VRAM is insufficient, stop other GPU workloads or lower `GPU_LAYERS` for

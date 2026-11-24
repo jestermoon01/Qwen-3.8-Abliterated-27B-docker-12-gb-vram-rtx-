@@ -10,7 +10,7 @@ from starlette.background import BackgroundTask
 
 BACKEND = os.getenv('BACKEND', 'http://inference:8080')
 MODEL = os.getenv('MODEL_ALIAS', 'huihui-qwen3.8-27b')
-CONTEXT = int(os.getenv('CONTEXT_PER_SLOT', '8192'))
+CONTEXT = int(os.getenv('CONTEXT_PER_SLOT', '32768'))
 
 
 @asynccontextmanager

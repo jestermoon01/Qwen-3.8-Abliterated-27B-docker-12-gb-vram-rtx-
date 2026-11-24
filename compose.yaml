@@ -13,7 +13,7 @@ services:
   inference:
     image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda@sha256:f8e7c336e3660804f6bc35a4147dbfdf1ddae9b7c3c50d412fab49b323e28fea}
     environment:
-      LLAMA_ARG_SPEC_TYPE: ${SPEC_TYPE:-draft-mtp}
+      LLAMA_ARG_SPEC_TYPE: ${SPEC_TYPE:-none}
       LLAMA_ARG_SPEC_DRAFT_N_MAX: ${SPEC_DRAFT_MAX:-3}
       LLAMA_ARG_N_GPU_LAYERS_DRAFT: ${DRAFT_GPU_LAYERS:-all}
     gpus: all
@@ -33,7 +33,7 @@ services:
       - --port
       - '8080'
       - --ctx-size
-      - ${TOTAL_CONTEXT:-8192}
+      - ${TOTAL_CONTEXT:-32768}
       - --parallel
       - ${PARALLEL_SLOTS:-1}
       - --threads
@@ -51,12 +51,12 @@ services:
       - --batch-size
       - '512'
       - --ubatch-size
-      - ${UBATCH_SIZE:-64}
+      - ${UBATCH_SIZE:-128}
       - --cont-batching
       - --jinja
       - --no-context-shift
       - --chat-template-kwargs
-      - '{"enable_thinking": ${ENABLE_THINKING:-false}}'
+      - '{"enable_thinking": ${ENABLE_THINKING:-true}}'
     healthcheck:
       test: [CMD, curl, -fsS, http://localhost:8080/health]
       interval: 10s
@@ -71,7 +71,7 @@ services:
     environment:
       MODEL_ALIAS: ${MODEL_ALIAS:-huihui-qwen3.8-27b}
       BACKEND: http://inference:8080
-      CONTEXT_PER_SLOT: ${CONTEXT_PER_SLOT:-8192}
+      CONTEXT_PER_SLOT: ${CONTEXT_PER_SLOT:-32768}
     depends_on:
       inference:
         condition: service_healthy
