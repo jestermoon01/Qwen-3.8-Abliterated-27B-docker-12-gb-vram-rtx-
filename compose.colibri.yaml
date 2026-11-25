@@ -1,0 +1,56 @@
+# Optional standalone IQ2 backend. Stop IQ3 inference/gateway before starting.
+name: qwen-colibri
+services:
+  model-download:
+    image: python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+    restart: 'no'
+    volumes:
+      - weights:/weights
+      - ./model-manifest.iq2.json:/setup/model-manifest.json:ro
+      - ./scripts/download_model.py:/setup/download_model.py:ro
+    command: [python, /setup/download_model.py, --manifest, /setup/model-manifest.json, --destination, /weights/model.gguf]
+  model-import:
+    image: qwen-local-colibri:cuda
+    build:
+      context: ./colibri
+    restart: 'no'
+    volumes:
+      - weights:/weights:ro
+      - state:/model
+    depends_on:
+      model-download:
+        condition: service_completed_successfully
+    command: [import, /weights/model.gguf, --out, /model, --mode, link]
+  colibri:
+    image: qwen-local-colibri:cuda
+    build:
+      context: ./colibri
+    gpus: all
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${COLIBRI_PORT:-8002}:5000'
+    environment:
+      COLI_ALLOW_INSECURE_BIND: '1'
+      COLI_CUDA: '1'
+      COLI_CUDA_FLUSH: '1'
+      COLI_CUDA_CHAIN: '1'
+      COLI_CUDA_CHAIN_ROWS: '128'
+      COLI_LOOKUP: '0'
+      Q36_MTP: '0'
+      OMP_NUM_THREADS: '8'
+    volumes:
+      - weights:/weights:ro
+      - state:/model
+    depends_on:
+      model-import:
+        condition: service_completed_successfully
+    command: [serve, --model, /model, --host, 0.0.0.0, --port, '5000', --model-id, huihui-qwen3.8-27b, --ctx, '32768', --ram, '24', --gpu, '0', --vram, '11', --kv-slots, '1']
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 30
+      start_period: 120s
+volumes:
+  weights:
+  state:

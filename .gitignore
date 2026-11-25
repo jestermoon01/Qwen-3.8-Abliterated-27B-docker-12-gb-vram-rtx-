@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+!profiles/*.env
 *.gguf
 *.part
 __pycache__/

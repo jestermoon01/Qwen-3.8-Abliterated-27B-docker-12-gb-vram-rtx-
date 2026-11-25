@@ -15,5 +15,13 @@ jobs:
         run: docker compose -f compose.yaml -f compose.local-model.yaml config --quiet
       - name: Build UI and API proxy
         run: docker build -t qwen-check .
+      - name: Validate optional Colibri deployment
+        run: docker compose -f compose.colibri.yaml config --quiet
+      - name: Validate Colibri local model override
+        env:
+          COLIBRI_MODEL_PATH: /tmp/model.gguf
+        run: docker compose -f compose.colibri.yaml -f compose.colibri.local-model.yaml config --quiet
       - name: Check deployment Python syntax
-        run: python -m py_compile gateway/app.py scripts/download_model.py
+        run: python -m py_compile gateway/app.py scripts/download_model.py benchmarks/stream_hardware.py
+      - name: Check setup shell syntax
+        run: sh -n scripts/setup.sh && sh -n scripts/setup-colibri.sh

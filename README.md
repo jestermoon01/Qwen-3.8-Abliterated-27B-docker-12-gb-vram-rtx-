@@ -1,7 +1,11 @@
 # Qwen 27B: local inference and chat UI
 
 Deploy Huihui Qwen3.8 27B IQ3 with llama.cpp CUDA, a browser chat UI, and an
-OpenAI-compatible API for agent clients. Only model deployment is included.
+OpenAI-compatible API for agent clients. IQ3 is the recommended default for
+Hermes. An optional Colibri CUDA IQ2 deployment is included separately.
+
+See **[CONFIGURATIONS_AND_RESULTS.md](CONFIGURATIONS_AND_RESULTS.md)** for both
+setups, switching instructions, Hermes connection settings and measured results.
 
 The defaults match the inspected running Docker inference container: the same
 IQ3 GGUF, pinned llama.cpp CUDA image, 32K context, one slot, thinking enabled,
@@ -66,8 +70,9 @@ docker compose ps -a
 ```
 
 Open **http://localhost:8001/**. Chat history stays in browser memory until refresh.
-Start a new chat when you reach the context limit. There are no benchmarks,
-agent frameworks, memory services, databases, or automatic compression.
+Start a new chat when you reach the context limit. This public package does not
+bundle agent frameworks, memory services, databases, or automatic compression.
+Benchmark scripts and recorded comparison data are included for reproduction.
 
 ## Attach an agent
 

@@ -1,0 +1,23 @@
+# Optional local IQ2 GGUF. Use together with compose.colibri.yaml.
+services:
+  model-download:
+    profiles: [download]
+  model-import:
+    depends_on: !reset {}
+    volumes: !override
+      - type: bind
+        source: ${COLIBRI_MODEL_PATH:?Set COLIBRI_MODEL_PATH to the IQ2 GGUF}
+        target: /weights/model.gguf
+        read_only: true
+        bind:
+          create_host_path: false
+      - state:/model
+  colibri:
+    volumes: !override
+      - type: bind
+        source: ${COLIBRI_MODEL_PATH:?Set COLIBRI_MODEL_PATH to the IQ2 GGUF}
+        target: /weights/model.gguf
+        read_only: true
+        bind:
+          create_host_path: false
+      - state:/model
